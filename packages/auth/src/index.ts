@@ -4,6 +4,7 @@ import {
   KeystoneConfig,
   KeystoneContext,
   BaseKeystoneTypeInfo,
+  AdminUIConfig,
 } from '@keystone-6/core/types';
 import { password, timestamp } from '@keystone-6/core/fields';
 
