@@ -143,7 +143,7 @@ lists.RelatedToAll = list({
 
 const config = apiTestConfig({
   lists,
-  session: statelessSessions({ secret: COOKIE_SECRET }),
+  getSession: statelessSessions({ secret: COOKIE_SECRET, data: 'id' }).get,
   ui: {
     isAccessAllowed: () => true,
   },

@@ -2,7 +2,7 @@ import { graphql } from '@keystone-6/core';
 import { BaseItem } from '@keystone-6/core/types';
 import { assertInputObjectType, GraphQLInputObjectType, GraphQLSchema } from 'graphql';
 
-import { AuthGqlNames, InitFirstItemConfig } from '../types';
+import { AuthGqlNames, InitFirstItemConfig, SessionStrategy } from '../types';
 
 export function getInitFirstItemSchema({
   listKey,
@@ -11,6 +11,7 @@ export function getInitFirstItemSchema({
   gqlNames,
   graphQLSchema,
   ItemAuthenticationWithPasswordSuccess,
+  sessionStrategy,
 }: {
   listKey: string;
   fields: InitFirstItemConfig<any>['fields'];
@@ -21,6 +22,7 @@ export function getInitFirstItemSchema({
     item: BaseItem;
     sessionToken: string;
   }>;
+  sessionStrategy: SessionStrategy<any>;
 }) {
   const createInputConfig = assertInputObjectType(
     graphQLSchema.getType(`${listKey}CreateInput`)
@@ -42,10 +44,6 @@ export function getInitFirstItemSchema({
         type: graphql.nonNull(ItemAuthenticationWithPasswordSuccess),
         args: { data: graphql.arg({ type: graphql.nonNull(initialCreateInput) }) },
         async resolve(rootVal, { data }, context) {
-          if (!context.sessionStrategy) {
-            throw new Error('No session implementation available on context');
-          }
-
           const dbItemAPI = context.sudo().db[listKey];
 
           // should approximate hasInitFirstItemConditions
@@ -59,7 +57,7 @@ export function getInitFirstItemSchema({
           // (this is also mostly fine, the chance that people are using things where
           // the input value can't round-trip like the Upload scalar here is quite low)
           const item = await dbItemAPI.createOne({ data: { ...data, ...itemData } });
-          const sessionToken = (await context.sessionStrategy.start({
+          const sessionToken = (await sessionStrategy.start({
             data: { listKey, itemId: item.id.toString() },
             context,
           })) as string;

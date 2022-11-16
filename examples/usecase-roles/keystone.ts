@@ -11,6 +11,18 @@ const sessionMaxAge = 60 * 60 * 24 * 30; // 30 days
 const sessionConfig = {
   maxAge: sessionMaxAge,
   secret: sessionSecret,
+  /* This loads the related role for the current user, including all permissions */
+  data: `
+    name role {
+      id
+      name
+      canCreateTodos
+      canManageAllTodos
+      canSeeOtherPeople
+      canEditOtherPeople
+      canManagePeople
+      canManageRoles
+    }`,
 };
 
 const { withAuth } = createAuth({
@@ -37,18 +49,7 @@ const { withAuth } = createAuth({
       },
     },
   },
-  /* This loads the related role for the current user, including all permissions */
-  sessionData: `
-    name role {
-      id
-      name
-      canCreateTodos
-      canManageAllTodos
-      canSeeOtherPeople
-      canEditOtherPeople
-      canManagePeople
-      canManageRoles
-    }`,
+  sessionStrategy: statelessSessions(sessionConfig),
 });
 
 export default withAuth(
@@ -68,6 +69,5 @@ export default withAuth(
       /* Everyone who is signed in can access the Admin UI */
       isAccessAllowed: isSignedIn,
     },
-    session: statelessSessions(sessionConfig),
   })
 );

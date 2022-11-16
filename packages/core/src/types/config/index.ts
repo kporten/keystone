@@ -8,7 +8,6 @@ import type { Options as BodyParserOptions } from 'body-parser';
 
 import type { AssetMode, BaseKeystoneTypeInfo, KeystoneContext, DatabaseProvider } from '..';
 
-import { SessionStrategy } from '../session';
 import type { MaybePromise } from '../utils';
 import type {
   ListSchemaConfig,
@@ -98,7 +97,7 @@ export type KeystoneConfig<TypeInfo extends BaseKeystoneTypeInfo = BaseKeystoneT
   db: DatabaseConfig<TypeInfo>;
   ui?: AdminUIConfig<TypeInfo>;
   server?: ServerConfig<TypeInfo>;
-  session?: SessionStrategy<any>;
+  getSession?: (args: { context: KeystoneContext<TypeInfo> }) => Promise<unknown | undefined>;
   graphql?: GraphQLConfig;
   extendGraphqlSchema?: ExtendGraphqlSchema;
   /** An object containing configuration about keystone's various external storages.

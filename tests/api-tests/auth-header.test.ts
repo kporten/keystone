@@ -23,7 +23,10 @@ function setup(options?: any) {
     listKey: 'User',
     identityField: 'email',
     secretField: 'password',
-    sessionData: 'id',
+    sessionStrategy: statelessSessions({
+      secret: COOKIE_SECRET,
+      data: options?.sessionData || 'id',
+    }),
     ...options,
   });
 
@@ -48,7 +51,6 @@ function setup(options?: any) {
               },
             }),
           },
-          session: statelessSessions({ secret: COOKIE_SECRET }),
         })
       ),
     })
@@ -103,7 +105,7 @@ describe('Auth testing', () => {
       listKey: 'User',
       identityField: 'email',
       secretField: 'password',
-      sessionData: 'id',
+      sessionStrategy: statelessSessions({ secret: COOKIE_SECRET, data: 'id' }),
     });
     await expect(
       setupTestEnv({
@@ -119,8 +121,6 @@ describe('Auth testing', () => {
                 },
               }),
             },
-
-            session: statelessSessions({ secret: COOKIE_SECRET }),
           })
         ),
       })

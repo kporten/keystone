@@ -174,13 +174,12 @@ const auth = createAuth({
   listKey: 'User',
   identityField: 'email',
   secretField: 'password',
-  sessionData: 'id',
+  sessionStrategy: statelessSessions({ secret: COOKIE_SECRET, data: 'id' }),
 });
 
 const config = auth.withAuth(
   apiTestConfig({
     lists,
-    session: statelessSessions({ secret: COOKIE_SECRET }),
   })
 );
 

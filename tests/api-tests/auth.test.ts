@@ -23,7 +23,7 @@ const auth = createAuth({
   listKey: 'User',
   identityField: 'email',
   secretField: 'password',
-  sessionData: 'id name',
+  sessionStrategy: statelessSessions({ secret: COOKIE_SECRET, data: 'id name' }),
   initFirstItem: { fields: ['email', 'password'], itemData: { name: 'First User' } },
   magicAuthLink: {
     sendToken: async ({ identity, token }) => {
@@ -59,7 +59,6 @@ const runner = withServer(
             },
           }),
         },
-        session: statelessSessions({ secret: COOKIE_SECRET }),
       })
     ),
   })

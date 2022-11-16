@@ -20,6 +20,7 @@ const databaseURL = process.env.DATABASE_URL || 'file:./keystone.db';
 const sessionConfig = {
   maxAge: 60 * 60 * 24 * 360, // How long they stay signed in?
   secret: process.env.COOKIE_SECRET || 'this secret should only be used in testing',
+  data: `id name email role { ${permissionsList.join(' ')} }`,
 };
 
 const { withAuth } = createAuth({
@@ -36,7 +37,7 @@ const { withAuth } = createAuth({
       await sendPasswordResetEmail(args.token, args.identity);
     },
   },
-  sessionData: `id name email role { ${permissionsList.join(' ')} }`,
+  sessionStrategy: statelessSessions(sessionConfig),
 });
 
 export default withAuth(
@@ -65,6 +66,5 @@ export default withAuth(
       Role,
     },
     extendGraphqlSchema,
-    session: statelessSessions(sessionConfig),
   })
 );

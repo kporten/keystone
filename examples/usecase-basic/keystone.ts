@@ -18,7 +18,12 @@ const auth = createAuth({
       isAdmin: true,
     },
   },
-  sessionData: 'name isAdmin',
+  sessionStrategy: statelessSessions({
+    data: 'name isAdmin',
+    // The session secret is used to encrypt cookie data (should be an environment variable)
+    maxAge: sessionMaxAge,
+    secret: sessionSecret,
+  }),
 });
 
 export default auth.withAuth(
@@ -52,6 +57,5 @@ export default auth.withAuth(
     },
     lists,
     extendGraphqlSchema,
-    session: statelessSessions({ maxAge: sessionMaxAge, secret: sessionSecret }),
   })
 );

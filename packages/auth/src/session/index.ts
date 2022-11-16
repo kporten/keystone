@@ -2,7 +2,7 @@ import * as cookie from 'cookie';
 import Iron from '@hapi/iron';
 // uid-safe is what express-session uses so let's just use it
 import { sync as uid } from 'uid-safe';
-import { SessionStrategy, JSONValue, SessionStoreFunction } from '@keystone-6/core/types';
+import { SessionStrategy, JSONValue, SessionStoreFunction } from '../types';
 
 function generateSessionId() {
   return uid(24);
@@ -13,6 +13,7 @@ const MAX_AGE = 60 * 60 * 8; // 8 hours
 
 // should we also accept httpOnly?
 type StatelessSessionsOptions = {
+  data?: string;
   /**
    * Secret used by https://github.com/hapijs/iron for encapsulating data. Must be at least 32 characters long
    */
@@ -69,6 +70,7 @@ export function statelessSessions<T>({
   ironOptions = Iron.defaults,
   domain,
   sameSite = 'lax',
+  data = 'id',
 }: StatelessSessionsOptions): SessionStrategy<T> {
   if (!secret) {
     throw new Error('You must specify a session secret to use sessions');
@@ -77,6 +79,7 @@ export function statelessSessions<T>({
     throw new Error('The session secret must be at least 32 characters long');
   }
   return {
+    data,
     async get({ context }) {
       if (!context?.req) {
         return;
@@ -129,11 +132,13 @@ export function statelessSessions<T>({
 export function storedSessions({
   store: storeOption,
   maxAge = MAX_AGE,
+  data = 'id',
   ...statelessSessionsOptions
 }: { store: SessionStoreFunction } & StatelessSessionsOptions): SessionStrategy<JSONValue> {
-  let { get, start, end } = statelessSessions({ ...statelessSessionsOptions, maxAge });
+  let { get, start, end } = statelessSessions({ ...statelessSessionsOptions, maxAge, data });
   let store = storeOption({ maxAge });
   return {
+    data,
     async get({ context }) {
       const data = (await get({ context })) as { sessionId: string } | undefined;
       const sessionId = data?.sessionId;

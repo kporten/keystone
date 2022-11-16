@@ -24,8 +24,8 @@ export async function getNextApp(dev: boolean, projectAdminPath: string): Promis
   return app;
 }
 
-function defaultIsAccessAllowed({ session, sessionStrategy }: KeystoneContext) {
-  if (!sessionStrategy) return true;
+function defaultIsAccessAllowed({ session, getSession }: KeystoneContext) {
+  if (!getSession) return true;
   return session !== undefined;
 }
 

@@ -83,8 +83,8 @@ export function makeCreateContext({
         res: newRes,
       });
 
-      if (config.session) {
-        newContext.session = await config.session.get({ context: newContext });
+      if (config.getSession) {
+        newContext.session = await config.getSession({ context: newContext });
       }
 
       return newContext;
@@ -96,7 +96,7 @@ export function makeCreateContext({
       query: itemAPI,
       prisma: prismaClient,
       graphql: { raw: rawGraphQL, run: runGraphQL, schema },
-      sessionStrategy: config.session,
+      getSession: config.getSession,
       sudo: () => createContext({ sudo: true, req, res }),
       exitSudo: () => createContext({ sudo: false, req, res }),
       withSession: session => {

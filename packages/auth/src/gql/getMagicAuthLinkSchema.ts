@@ -1,6 +1,6 @@
 import type { BaseItem } from '@keystone-6/core/types';
 import { graphql } from '@keystone-6/core';
-import { AuthGqlNames, AuthTokenTypeConfig, SecretFieldImpl } from '../types';
+import { AuthGqlNames, AuthTokenTypeConfig, SecretFieldImpl, SessionStrategy } from '../types';
 
 import { createAuthToken } from '../lib/createAuthToken';
 import { validateAuthToken } from '../lib/validateAuthToken';
@@ -20,6 +20,7 @@ export function getMagicAuthLinkSchema<I extends string>({
   magicAuthLink,
   magicAuthTokenSecretFieldImpl,
   base,
+  sessionStrategy,
 }: {
   listKey: string;
   identityField: I;
@@ -27,6 +28,7 @@ export function getMagicAuthLinkSchema<I extends string>({
   magicAuthLink: AuthTokenTypeConfig;
   magicAuthTokenSecretFieldImpl: SecretFieldImpl;
   base: graphql.BaseSchemaMeta;
+  sessionStrategy: SessionStrategy<any>;
 }) {
   const RedeemItemMagicAuthTokenFailure = graphql.object<{
     code: typeof errorCodes[number];
@@ -90,10 +92,6 @@ export function getMagicAuthLinkSchema<I extends string>({
           token: graphql.arg({ type: graphql.nonNull(graphql.String) }),
         },
         async resolve(rootVal, { [identityField]: identity, token }, context) {
-          if (!context.sessionStrategy) {
-            throw new Error('No session implementation available on context');
-          }
-
           const dbItemAPI = context.sudo().db[listKey];
           const tokenType = 'magicAuth';
           const result = await validateAuthToken(
@@ -117,7 +115,7 @@ export function getMagicAuthLinkSchema<I extends string>({
             data: { [`${tokenType}RedeemedAt`]: new Date().toISOString() },
           });
 
-          const sessionToken = (await context.sessionStrategy.start({
+          const sessionToken = (await sessionStrategy.start({
             data: {
               listKey,
               itemId: result.item.id.toString(),

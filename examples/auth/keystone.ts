@@ -42,17 +42,29 @@ const { withAuth } = createAuth({
       isAdmin: true,
     },
   },
-
-  // add isAdmin to the session data(required by isAccessAllowed)
-  sessionData: 'isAdmin',
-});
-
-// you can find out more at https://keystonejs.com/docs/apis/session#session-api
-const session = statelessSessions({
-  // an maxAge option controls how long session cookies are valid for before they expire
-  maxAge: sessionMaxAge,
-  // an session secret is used to encrypt cookie data (should be an environment variable)
-  secret: sessionSecret,
+  sessionStrategy:
+    // Stateless sessions will store the listKey and itemId of the signed-in user in a cookie
+    statelessSessions({
+      // add isAdmin to the session data(required by isAccessAllowed)
+      data: 'name isAdmin',
+      // The maxAge option controls how long session cookies are valid for before they expire
+      maxAge: sessionMaxAge,
+      // The session secret is used to encrypt cookie data (should be an environment variable)
+      secret: sessionSecret,
+    }),
+  // Populate session.data based on the authed user
+  /* TODO -- complete the UI for these features and enable them
+  passwordResetLink: {
+    sendToken(args) {
+      console.log(`Password reset info:`, args);
+    },
+  },
+  magicAuthLink: {
+    sendToken(args) {
+      console.log(`Magic auth info:`, args);
+    },
+  },
+  */
 });
 
 export default withAuth(
@@ -65,7 +77,6 @@ export default withAuth(
       ...fixPrismaPath,
     },
     lists,
-    session,
     ui: {
       // only admins can view the AdminUI
       isAccessAllowed: ({ session }) => {

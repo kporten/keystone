@@ -4,7 +4,7 @@ import { GraphQLSchema, ExecutionResult, DocumentNode } from 'graphql';
 import { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { InitialisedList } from '../lib/core/types-for-lists';
 import { BaseListTypeInfo } from './type-info';
-import { GqlNames, BaseKeystoneTypeInfo, SessionStrategy } from '.';
+import { GqlNames, BaseKeystoneTypeInfo } from '.';
 
 export type KeystoneContext<TypeInfo extends BaseKeystoneTypeInfo = BaseKeystoneTypeInfo> = {
   req?: IncomingMessage;
@@ -27,7 +27,7 @@ export type KeystoneContext<TypeInfo extends BaseKeystoneTypeInfo = BaseKeystone
      */
     initialisedLists: Record<string, InitialisedList>;
   };
-  sessionStrategy?: SessionStrategy<any>;
+  getSession?: (args: { context: KeystoneContext }) => Promise<unknown | undefined>;
   session?: any;
 };
 

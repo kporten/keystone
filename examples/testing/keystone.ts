@@ -5,6 +5,14 @@ import { fixPrismaPath } from './../example-utils';
 import { lists } from './schema';
 import { TypeInfo } from '.keystone/types';
 
+// Stateless sessions will store the listKey and itemId of the signed-in user in a cookie.
+// This session object will be made available on the context object used in hooks, access-control,
+// resolvers, etc.
+const sessionStrategy = statelessSessions({
+  // The session secret is used to encrypt cookie data (should be an environment variable)
+  secret: '-- EXAMPLE COOKIE SECRET; CHANGE ME --',
+});
+
 // createAuth configures signin functionality based on the config below. Note this only implements
 // authentication, i.e signing in as an item using identity and secret fields in a list. Session
 // management and access control are controlled independently in the main keystone config.
@@ -22,14 +30,8 @@ const { withAuth } = createAuth({
     // These fields are collected in the "Create First User" form
     fields: ['name', 'email', 'password'],
   },
-});
-
-// Stateless sessions will store the listKey and itemId of the signed-in user in a cookie.
-// This session object will be made available on the context object used in hooks, access-control,
-// resolvers, etc.
-const session = statelessSessions({
-  // The session secret is used to encrypt cookie data (should be an environment variable)
-  secret: '-- EXAMPLE COOKIE SECRET; CHANGE ME --',
+  // We add our session configuration to the system here.
+  sessionStrategy,
 });
 
 // We wrap our config using the withAuth function. This will inject all
@@ -44,7 +46,5 @@ export default withAuth(
       ...fixPrismaPath,
     },
     lists,
-    // We add our session configuration to the system here.
-    session,
   })
 );
