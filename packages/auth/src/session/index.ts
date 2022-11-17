@@ -2,7 +2,7 @@ import * as cookie from 'cookie';
 import Iron from '@hapi/iron';
 // uid-safe is what express-session uses so let's just use it
 import { sync as uid } from 'uid-safe';
-import { SessionStrategy, JSONValue, SessionStoreFunction } from '../types';
+import { SessionStrategy, JSONValue, SessionStoreFunction } from '@keystone-6/core/types';
 
 function generateSessionId() {
   return uid(24);

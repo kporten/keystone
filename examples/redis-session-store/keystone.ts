@@ -1,5 +1,5 @@
 import { config } from '@keystone-6/core';
-import { storedSessions } from '@keystone-6/core/session';
+import { storedSessions } from '@keystone-6/auth/session';
 import { createAuth } from '@keystone-6/auth';
 import { createClient } from '@redis/client';
 import { fixPrismaPath } from '../example-utils';

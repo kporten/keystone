@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import { createAuth } from '@keystone-6/auth';
 
-import { statelessSessions } from '@keystone-6/core/session';
+import { statelessSessions } from '@keystone-6/auth/session';
 
 // Don't forget to set this env variable in vercel
 // or wherever you are deploying your Next.js app
