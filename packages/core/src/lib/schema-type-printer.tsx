@@ -259,11 +259,12 @@ export function printGeneratedTypes(
     '}',
     `export type Context = import('@keystone-6/core/types').KeystoneContext<TypeInfo>;`,
     '',
-    'export type TypeInfo = {',
+    'export type TypeInfo<Session = any> = {',
     `  lists: {`,
     ...listsTypeInfo,
     `  };`,
     `  prisma: import('${prismaClientPath}').PrismaClient;`,
+    `  session: Session;`,
     `};`,
     ``,
     // we need to reference the `TypeInfo` above in another type that is also called `TypeInfo`

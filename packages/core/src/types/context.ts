@@ -14,7 +14,7 @@ export type KeystoneContext<TypeInfo extends BaseKeystoneTypeInfo = BaseKeystone
   graphql: KeystoneGraphQLAPI;
   sudo: () => KeystoneContext<TypeInfo>;
   exitSudo: () => KeystoneContext<TypeInfo>;
-  withSession: (session: any) => KeystoneContext<TypeInfo>;
+  withSession: (session: TypeInfo['session']) => KeystoneContext<TypeInfo>;
   withRequest: (req: IncomingMessage, res?: ServerResponse) => Promise<KeystoneContext<TypeInfo>>;
   prisma: TypeInfo['prisma'];
   files: FilesContext;
@@ -27,8 +27,8 @@ export type KeystoneContext<TypeInfo extends BaseKeystoneTypeInfo = BaseKeystone
      */
     initialisedLists: Record<string, InitialisedList>;
   };
-  getSession?: (args: { context: KeystoneContext }) => Promise<unknown | undefined>;
-  session?: any;
+  getSession?: (args: { context: KeystoneContext }) => Promise<TypeInfo['session'] | undefined>;
+  session?: TypeInfo['session'];
 };
 
 // List item API

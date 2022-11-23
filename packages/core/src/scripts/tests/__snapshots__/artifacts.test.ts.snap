@@ -151,11 +151,12 @@ export declare namespace Lists {
 }
 export type Context = import('@keystone-6/core/types').KeystoneContext<TypeInfo>;
 
-export type TypeInfo = {
+export type TypeInfo<Session = any> = {
   lists: {
     readonly Todo: Lists.Todo.TypeInfo;
   };
   prisma: import('@prisma/client').PrismaClient;
+  session: Session;
 };
 
 type __TypeInfo = TypeInfo;
