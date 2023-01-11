@@ -9,19 +9,8 @@ function hasSession({ context }: { context: Context }): boolean {
 
 function makeAccess(f: ({ context }: { context: Context }) => boolean) {
   return {
-    filter: {
-      read: f,
-      create: f,
-      update: f,
-      delete: f,
-    },
     operation: {
       query: f,
-      create: f,
-      update: f,
-      delete: f,
-    },
-    item: {
       create: f,
       update: f,
       delete: f,
