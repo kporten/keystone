@@ -1,7 +1,7 @@
 import { config } from '@keystone-6/core';
 import { createAuth } from '@keystone-6/auth';
-import { fixPrismaPath } from '../example-utils';
 import { statelessSessions } from '@keystone-6/auth/session';
+import { fixPrismaPath } from '../example-utils';
 import { lists } from './schema';
 
 // WARNING: this example is for demonstration purposes only
