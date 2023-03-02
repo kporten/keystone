@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import { config, graphql } from '@keystone-6/core';
+import { fixPrismaPath } from '../example-utils';
 import { lists } from './schema';
 import { Context, TypeInfo } from '.keystone/types';
 
@@ -111,6 +112,9 @@ export default config<TypeInfo>({
   db: {
     provider: 'sqlite',
     url: process.env.DATABASE_URL || 'file:./keystone-example.db',
+
+    // WARNING: this is only needed for our monorepo examples, dont do this
+    ...fixPrismaPath,
     async onConnect(context) {
       if (process.argv.includes('--seed-data')) {
         await insertSeedData(context);

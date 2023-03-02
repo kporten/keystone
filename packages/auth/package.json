@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.16.3",
-    "@hapi/iron": "^6.0.0",
+    "@hapi/iron": "^7.0.0",
     "@keystone-ui/button": "^7.0.2",
     "@keystone-ui/core": "^5.0.2",
     "@keystone-ui/fields": "^7.1.2",
