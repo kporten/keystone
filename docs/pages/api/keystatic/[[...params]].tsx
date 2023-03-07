@@ -1,0 +1,1 @@
+api/keystatic/[[...params]].tsx 
