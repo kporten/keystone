@@ -8,19 +8,7 @@ import { confirmPrompt, shouldPrompt } from './lib/prompts';
 import { printGeneratedTypes } from './lib/schema-type-printer';
 import { ExitError } from './scripts/utils';
 import { initialiseLists } from './lib/core/types-for-lists';
-import { printPrismaSchema } from './lib/core/prisma-schema';
-
-export function getSchemaPaths(cwd: string) {
-  return {
-    prisma: path.join(cwd, 'schema.prisma'),
-    graphql: path.join(cwd, 'schema.graphql'),
-  };
-}
-
-type CommittedArtifacts = {
-  graphql: string;
-  prisma: string;
-};
+import { printPrismaSchema } from './lib/core/prisma-schema-printer';
 
 export function getFormattedGraphQLSchema(schema: string) {
   return (
@@ -31,17 +19,17 @@ export function getFormattedGraphQLSchema(schema: string) {
   );
 }
 
-export async function getCommittedArtifacts(
-  graphQLSchema: GraphQLSchema,
-  config: KeystoneConfig
-): Promise<CommittedArtifacts> {
+export async function getCommittedArtifacts(config: KeystoneConfig, graphQLSchema: GraphQLSchema) {
   const lists = initialiseLists(config);
   const prismaSchema = printPrismaSchema(
     lists,
+    config.db.prismaClientPath,
     config.db.provider,
     config.db.prismaPreviewFeatures,
-    config.db.additionalPrismaDatasourceProperties
+    config.db.additionalPrismaDatasourceProperties,
+    config.db.extendPrismaSchema
   );
+
   return {
     graphql: getFormattedGraphQLSchema(printSchema(graphQLSchema)),
     prisma: await formatPrismaSchema(prismaSchema),
@@ -64,7 +52,7 @@ async function ensurePrismaBinariesExist() {
   // since stricter package managers(e.g. pnpm, Yarn Berry)
   // don't allow importing packages that aren't explicitly depended on
   const requireFromPrismaSdk = createRequire(require.resolve('@prisma/internals'));
-  const prismaEngines = requireFromPrismaSdk('@prisma/engines') as typeof import('@prisma/engines');
+  const prismaEngines = requireFromPrismaSdk('@prisma/engines');
   await prismaEngines.ensureBinariesExist();
   hasEnsuredBinariesExist = true;
 }
@@ -85,16 +73,37 @@ async function readFileButReturnNothingIfDoesNotExist(filename: string) {
   }
 }
 
+// TODO: this cannot be changed for now, circular dependency with getSystemPaths, getEsbuildConfig
+export function getBuiltKeystoneConfigurationPath(cwd: string) {
+  return path.join(cwd, '.keystone/config.js');
+}
+
+export function getSystemPaths(cwd: string, config: KeystoneConfig) {
+  return {
+    config: getBuiltKeystoneConfigurationPath(cwd),
+    admin: path.join(cwd, '.keystone/admin'),
+    keystone: path.join(cwd, 'node_modules/.keystone'),
+    prisma: config.db.prismaClientPath
+      ? path.join(cwd, config.db.prismaClientPath)
+      : '@prisma/client',
+    schema: {
+      // types: // TODO
+      prisma: path.join(cwd, 'schema.prisma'),
+      graphql: path.join(cwd, 'schema.graphql'),
+    },
+  };
+}
+
 export async function validateCommittedArtifacts(
-  graphQLSchema: GraphQLSchema,
+  cwd: string,
   config: KeystoneConfig,
-  cwd: string
+  graphQLSchema: GraphQLSchema
 ) {
-  const artifacts = await getCommittedArtifacts(graphQLSchema, config);
-  const schemaPaths = getSchemaPaths(cwd);
+  const paths = getSystemPaths(cwd, config);
+  const artifacts = await getCommittedArtifacts(config, graphQLSchema);
   const [writtenGraphQLSchema, writtenPrismaSchema] = await Promise.all([
-    readFileButReturnNothingIfDoesNotExist(schemaPaths.graphql),
-    readFileButReturnNothingIfDoesNotExist(schemaPaths.prisma),
+    readFileButReturnNothingIfDoesNotExist(paths.schema.graphql),
+    readFileButReturnNothingIfDoesNotExist(paths.schema.prisma),
   ]);
   const outOfDateSchemas = (() => {
     if (writtenGraphQLSchema !== artifacts.graphql && writtenPrismaSchema !== artifacts.prisma) {
@@ -107,132 +116,87 @@ export async function validateCommittedArtifacts(
       return 'prisma';
     }
   })();
-  if (outOfDateSchemas) {
-    const message = {
-      both: 'Your Prisma and GraphQL schemas are not up to date',
-      graphql: 'Your GraphQL schema is not up to date',
-      prisma: 'Your Prisma schema is not up to date',
-    }[outOfDateSchemas];
-    console.log(message);
-    const term = {
-      both: 'Prisma and GraphQL schemas',
-      prisma: 'Prisma schema',
-      graphql: 'GraphQL schema',
-    }[outOfDateSchemas];
-    if (shouldPrompt && (await confirmPrompt(`Would you like to update your ${term}?`))) {
-      await writeCommittedArtifacts(artifacts, cwd);
-    } else {
-      console.log(`Please run keystone postinstall --fix to update your ${term}`);
-      throw new ExitError(1);
-    }
-  }
-}
+  if (!outOfDateSchemas) return;
 
-export async function writeCommittedArtifacts(artifacts: CommittedArtifacts, cwd: string) {
-  const schemaPaths = getSchemaPaths(cwd);
-  await Promise.all([
-    fs.writeFile(schemaPaths.graphql, artifacts.graphql),
-    fs.writeFile(schemaPaths.prisma, artifacts.prisma),
-  ]);
+  const message = {
+    both: 'Your Prisma and GraphQL schemas are not up to date',
+    graphql: 'Your GraphQL schema is not up to date',
+    prisma: 'Your Prisma schema is not up to date',
+  }[outOfDateSchemas];
+  console.log(message);
+
+  const which = {
+    both: 'Prisma and GraphQL schemas',
+    prisma: 'Prisma schema',
+    graphql: 'GraphQL schema',
+  }[outOfDateSchemas];
+
+  if (shouldPrompt && (await confirmPrompt(`Replace the ${which}?`))) {
+    await Promise.all([
+      fs.writeFile(paths.schema.graphql, artifacts.graphql),
+      fs.writeFile(paths.schema.prisma, artifacts.prisma),
+    ]);
+    return;
+  }
+
+  console.log(`Use keystone dev to update the ${which}`);
+  throw new ExitError(1);
 }
 
 export async function generateCommittedArtifacts(
-  graphQLSchema: GraphQLSchema,
+  cwd: string,
   config: KeystoneConfig,
-  cwd: string
+  graphQLSchema: GraphQLSchema
 ) {
-  const artifacts = await getCommittedArtifacts(graphQLSchema, config);
-  await writeCommittedArtifacts(artifacts, cwd);
+  const paths = getSystemPaths(cwd, config);
+  const artifacts = await getCommittedArtifacts(config, graphQLSchema);
+
+  await Promise.all([
+    fs.writeFile(paths.schema.graphql, artifacts.graphql),
+    fs.writeFile(paths.schema.prisma, artifacts.prisma),
+  ]);
   return artifacts;
 }
 
-const makeVercelIncludeTheSQLiteDB = (
-  cwd: string,
-  directoryOfFileToBeWritten: string,
-  config: KeystoneConfig
-) => {
-  if (config.db.provider === 'sqlite') {
-    const sqliteDbAbsolutePath = path.resolve(cwd, config.db.url.replace('file:', ''));
-
-    return `import path from 'path';
-
-    path.join(__dirname, ${JSON.stringify(
-      path.relative(directoryOfFileToBeWritten, sqliteDbAbsolutePath)
-    )});
-    path.join(process.cwd(), ${JSON.stringify(path.relative(cwd, sqliteDbAbsolutePath))});
-    `;
-  }
-  return '';
-};
-
-const nextGraphQLAPIJS = (
-  cwd: string,
-  config: KeystoneConfig
-) => `import keystoneConfig from '../../../keystone';
-import { PrismaClient } from '.prisma/client';
-import { nextGraphQLAPIRoute } from '@keystone-6/core/___internal-do-not-use-will-break-in-patch/next-graphql';
-${makeVercelIncludeTheSQLiteDB(cwd, path.join(cwd, 'node_modules/.keystone/next'), config)}
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export default nextGraphQLAPIRoute(keystoneConfig, PrismaClient);
-`;
-
-// note the export default config is just a lazy way of going "this is also any"
-const nextGraphQLAPIDTS = `export const config: any;
-export default config;
-`;
-
 export async function generateNodeModulesArtifactsWithoutPrismaClient(
-  graphQLSchema: GraphQLSchema,
+  cwd: string,
   config: KeystoneConfig,
-  cwd: string
+  graphQLSchema: GraphQLSchema
 ) {
+  const paths = getSystemPaths(cwd, config);
   const lists = initialiseLists(config);
 
-  const dotKeystoneDir = path.join(cwd, 'node_modules/.keystone');
   await Promise.all([
     fs.outputFile(
-      path.join(dotKeystoneDir, 'types.d.ts'),
-      printGeneratedTypes(graphQLSchema, lists)
+      path.join(paths.keystone, 'types.d.ts'),
+      printGeneratedTypes(paths.prisma, graphQLSchema, lists)
     ),
-    fs.outputFile(path.join(dotKeystoneDir, 'types.js'), ''),
-    ...(config.experimental?.generateNextGraphqlAPI
-      ? [
-          fs.outputFile(
-            path.join(dotKeystoneDir, 'next/graphql-api.js'),
-            nextGraphQLAPIJS(cwd, config)
-          ),
-          fs.outputFile(path.join(dotKeystoneDir, 'next/graphql-api.d.ts'), nextGraphQLAPIDTS),
-        ]
-      : []),
+    fs.outputFile(path.join(paths.keystone, 'types.js'), ''),
   ]);
 }
 
 export async function generateNodeModulesArtifacts(
-  graphQLSchema: GraphQLSchema,
+  cwd: string,
   config: KeystoneConfig,
-  cwd: string
+  graphQLSchema: GraphQLSchema
 ) {
+  const paths = getSystemPaths(cwd, config);
+
   await Promise.all([
-    generatePrismaClient(cwd),
-    generateNodeModulesArtifactsWithoutPrismaClient(graphQLSchema, config, cwd),
+    generatePrismaClient(paths.schema.prisma),
+    generateNodeModulesArtifactsWithoutPrismaClient(cwd, config, graphQLSchema),
   ]);
 }
 
-async function generatePrismaClient(cwd: string) {
+async function generatePrismaClient(prismaSchemaPath: string) {
   const generator = await getGenerator({
-    schemaPath: getSchemaPaths(cwd).prisma,
+    schemaPath: prismaSchemaPath,
     dataProxy: false,
   });
   try {
     await generator.generate();
   } finally {
-    let closePromise = new Promise<void>(resolve => {
+    const closePromise = new Promise<void>(resolve => {
       const child = (generator as any).generatorProcess
         .child as import('child_process').ChildProcess;
       child.once('exit', () => {
@@ -250,7 +214,3 @@ export type PrismaModule = {
   };
   Prisma: { DbNull: unknown; JsonNull: unknown; [key: string]: unknown };
 };
-
-export function requirePrismaClient(cwd: string): PrismaModule {
-  return require(path.join(cwd, 'node_modules/.prisma/client'));
-}

@@ -4,10 +4,12 @@ import { format } from 'util';
 import stripAnsi from 'strip-ansi';
 import * as fs from 'fs-extra';
 import fastGlob from 'fast-glob';
+
 // @ts-ignore
 import fixturez from 'fixturez';
 import { parseArgsStringToArgv } from 'string-argv';
-import { IntrospectionEngine, uriToCredentials } from '@prisma/internals';
+import { MigrateEngine } from '@prisma/migrate';
+import { uriToCredentials } from '@prisma/internals';
 import { KeystoneConfig } from '../../types';
 import { cli } from '../cli';
 import { mockPrompts } from '../../lib/prompts';
@@ -26,6 +28,11 @@ export const schemas = {
   'schema.graphql': fs.readFileSync(`${__dirname}/fixtures/basic-project/schema.graphql`, 'utf8'),
   'schema.prisma': fs.readFileSync(`${__dirname}/fixtures/basic-project/schema.prisma`, 'utf8'),
 };
+
+export const customPrismaKeystoneConfig = fs.readFileSync(
+  `${__dirname}/fixtures/custom-prisma-project/keystone.ts`,
+  'utf8'
+);
 
 export function recordConsole(promptResponses?: Record<string, string | boolean>) {
   let oldConsole = { ...console };
@@ -132,12 +139,15 @@ async function getSymlinkType(targetPath: string): Promise<'dir' | 'file'> {
 
 export async function runCommand(cwd: string, args: string) {
   const argv = parseArgsStringToArgv(args);
-  return cli(cwd, argv);
+  const proc = await cli(cwd, argv);
+  if (typeof proc === 'function') {
+    await proc();
+  }
 }
 
 let dirsToRemove: string[] = [];
 
-afterEach(async () => {
+afterAll(async () => {
   await Promise.all(
     dirsToRemove.map(filepath => {
       return fs.remove(filepath);
@@ -226,12 +236,14 @@ export async function getFiles(
 }
 
 export async function introspectDb(cwd: string, url: string) {
-  const engine = new IntrospectionEngine({ cwd });
+  const engine = new MigrateEngine({ projectDir: cwd });
   try {
-    const { datamodel } = await engine.introspect(`datasource db {
+    const { datamodel } = await engine.introspect({
+      schema: `datasource db {
   url = ${JSON.stringify(url)}
   provider = ${JSON.stringify(uriToCredentials(url).type)}
-}`);
+}`,
+    });
     return datamodel;
   } finally {
     engine.stop();

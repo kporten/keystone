@@ -1,6 +1,6 @@
 import type { Server } from 'http';
 import type { ListenOptions } from 'net';
-import type { Config } from 'apollo-server-express';
+import type { ApolloServerOptions } from '@apollo/server';
 import { CorsOptions } from 'cors';
 import express from 'express';
 import type { GraphQLSchema } from 'graphql';
@@ -75,6 +75,20 @@ export type StorageConfig = (
       endpoint?: string;
       /** If true, will force the 'old' S3 path style of putting bucket name at the start of the pathname of the URL  */
       forcePathStyle?: boolean;
+      /** A string that sets permissions for the uploaded assets. Default is 'private'.
+       *
+       * Amazon S3 supports a set of predefined grants, known as canned ACLs.
+       * See https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl
+       * for more details.
+       */
+      acl?:
+        | 'private'
+        | 'public-read'
+        | 'public-read-write'
+        | 'aws-exec-read'
+        | 'authenticated-read'
+        | 'bucket-owner-read'
+        | 'bucket-owner-full-control';
     }
 ) &
   FileOrImage;
@@ -99,8 +113,6 @@ export type KeystoneConfig<TypeInfo extends BaseKeystoneTypeInfo = BaseKeystoneT
   telemetry?: boolean;
   /** Experimental config options */
   experimental?: {
-    /** Creates a file at `node_modules/.keystone/next/graphql-api` with `default` and `config` exports that can be re-exported in a Next API route */
-    generateNextGraphqlAPI?: boolean;
     /** Adds the internal data structure `experimental.initialisedLists` to the context object.
      * This is not a stable API and may contain breaking changes in `patch` level releases.
      */
@@ -114,16 +126,31 @@ export type { ListSchemaConfig, ListConfig, BaseFields, MaybeSessionFunction, Ma
 
 // config.db
 
+// Copy of the Prisma's LogLevel types from `src/runtime/getLogLevel.ts`,
+// because they are not exported by Prisma.
+type PrismaLogLevel = 'info' | 'query' | 'warn' | 'error';
+type PrismaLogDefinition = {
+  level: PrismaLogLevel;
+  emit: 'stdout' | 'event';
+};
+
 export type DatabaseConfig<TypeInfo extends BaseKeystoneTypeInfo> = {
   url: string;
   shadowDatabaseUrl?: string;
   onConnect?: (args: KeystoneContext<TypeInfo>) => Promise<void>;
+  /** @deprecated */
   useMigrations?: boolean;
-  enableLogging?: boolean;
+  enableLogging?: boolean | PrismaLogLevel | Array<PrismaLogLevel | PrismaLogDefinition>;
   idField?: IdFieldConfig;
   provider: DatabaseProvider;
+
+  /** @deprecated use extendPrismaSchema */
   prismaPreviewFeatures?: readonly string[]; // https://www.prisma.io/docs/concepts/components/preview-features
+  /** @deprecated use extendPrismaSchema */
   additionalPrismaDatasourceProperties?: { [key: string]: string };
+
+  prismaClientPath?: string;
+  extendPrismaSchema?: (schema: string) => string;
 };
 
 // config.ui
@@ -135,16 +162,17 @@ export type AdminUIConfig<TypeInfo extends BaseKeystoneTypeInfo> = {
   /** A function that can be run to validate that the current session should have access to the Admin UI */
   isAccessAllowed?: (context: KeystoneContext<TypeInfo>) => MaybePromise<boolean>;
 
-  /** An array of page routes that can be accessed without passing the isAccessAllowed check */
+  /** An array of page routes that bypass the isAccessAllowed function */
   publicPages?: readonly string[];
 
   getAdditionalFiles?: readonly ((
     config: KeystoneConfig<TypeInfo>
   ) => MaybePromise<readonly AdminFileToWrite[]>)[];
 
+  /** An async middleware function that can optionally return a redirect */
   pageMiddleware?: (args: {
     context: KeystoneContext<TypeInfo>;
-    isValidSession: boolean; // TODO: rename "isValidSession" to "wasAccessAllowed"?
+    wasAccessAllowed: boolean;
   }) => MaybePromise<{ kind: 'redirect'; to: string } | void>;
 };
 
@@ -207,7 +235,7 @@ export type GraphQLConfig = {
    *  Additional options to pass into the ApolloServer constructor.
    *  @see https://www.apollographql.com/docs/apollo-server/api/apollo-server/#constructor
    */
-  apolloConfig?: Config;
+  apolloConfig?: Partial<ApolloServerOptions<KeystoneContext>>;
   /**
    * When an error is returned from the GraphQL API, Apollo can include a stacktrace
    * indicating where the error occurred. When Keystone is processing mutations, it

@@ -88,25 +88,29 @@ function printInputTypesFromSchema(schema: GraphQLSchema, scalars: Record<string
 }
 
 function printInterimFieldType({
+  prismaClientPath,
   listKey,
   fieldKey,
   prismaKey,
   operation,
 }: {
+  prismaClientPath: string;
   listKey: string;
   fieldKey: string;
   prismaKey: string;
   operation: string;
 }) {
-  return `  ${fieldKey}?: import('.prisma/client').Prisma.${listKey}${operation}Input["${prismaKey}"];`;
+  return `  ${fieldKey}?: import('${prismaClientPath}').Prisma.${listKey}${operation}Input["${prismaKey}"];`;
 }
 
 function printInterimMultiFieldType({
+  prismaClientPath,
   listKey,
   fieldKey,
   operation,
   fields,
 }: {
+  prismaClientPath: string;
   listKey: string;
   fieldKey: string;
   operation: string;
@@ -116,13 +120,23 @@ function printInterimMultiFieldType({
     `  ${fieldKey}: {`,
     ...Object.keys(fields).map(subFieldKey => {
       const prismaKey = `${fieldKey}_${subFieldKey}`;
-      return '  ' + printInterimFieldType({ listKey, fieldKey: subFieldKey, prismaKey, operation });
+      return (
+        '  ' +
+        printInterimFieldType({
+          prismaClientPath,
+          listKey,
+          fieldKey: subFieldKey,
+          prismaKey,
+          operation,
+        })
+      );
     }),
     `  };`,
   ].join('\n');
 }
 
 function printInterimType<L extends InitialisedList>(
+  prismaClientPath: string,
   list: L,
   listKey: string,
   typename: string,
@@ -134,6 +148,7 @@ function printInterimType<L extends InitialisedList>(
       if (dbField.kind === 'none' || fieldKey === 'id') return `  ${fieldKey}?: undefined;`;
       if (dbField.kind === 'multi') {
         return printInterimMultiFieldType({
+          prismaClientPath,
           listKey,
           fieldKey,
           operation,
@@ -141,13 +156,23 @@ function printInterimType<L extends InitialisedList>(
         });
       }
 
-      return printInterimFieldType({ listKey, fieldKey, prismaKey: fieldKey, operation });
+      return printInterimFieldType({
+        prismaClientPath,
+        listKey,
+        fieldKey,
+        prismaKey: fieldKey,
+        operation,
+      });
     }),
     `};`,
   ].join('\n');
 }
 
-function printListTypeInfo<L extends InitialisedList>(listKey: string, list: L) {
+function printListTypeInfo<L extends InitialisedList>(
+  prismaClientPath: string,
+  listKey: string,
+  list: L
+) {
   // prettier-ignore
   const {
     whereInputName,
@@ -162,7 +187,7 @@ function printListTypeInfo<L extends InitialisedList>(listKey: string, list: L) 
   return [
     `export type ${listKey} = import('@keystone-6/core').ListConfig<${listTypeInfoName}, any>;`,
     `namespace ${listKey} {`,
-    `  export type Item = import('.prisma/client').${listKey};`,
+    `  export type Item = import('${prismaClientPath}').${listKey};`,
     `  export type TypeInfo = {`,
     `    key: "${listKey}";`,
     `    isSingleton: ${list.isSingleton};`,
@@ -171,13 +196,13 @@ function printListTypeInfo<L extends InitialisedList>(listKey: string, list: L) 
     `    inputs: {`,
     `      where: ${whereInputName};`,
     `      uniqueWhere: ${whereUniqueInputName};`,
-    `      create: ${createInputName};`,
-    `      update: ${updateInputName};`,
+    `      create: ${list.graphql.isEnabled.create ? createInputName : 'never'};`,
+    `      update: ${list.graphql.isEnabled.update ? updateInputName : 'never'};`,
     `      orderBy: ${listOrderName};`,
     `    };`,
     `    prisma: {`,
-    `      create: Resolved${createInputName}`,
-    `      update: Resolved${updateInputName}`,
+    `      create: ${list.graphql.isEnabled.create ? `Resolved${createInputName}` : 'never'};`,
+    `      update: ${list.graphql.isEnabled.update ? `Resolved${updateInputName}` : 'never'};`,
     `    };`,
     `    all: __TypeInfo;`,
     `  };`,
@@ -188,26 +213,33 @@ function printListTypeInfo<L extends InitialisedList>(listKey: string, list: L) 
 }
 
 export function printGeneratedTypes(
+  prismaClientPath: string,
   graphQLSchema: GraphQLSchema,
   lists: Record<string, InitialisedList>
 ) {
   const interimCreateUpdateTypes = [];
   const listsTypeInfo = [];
   const listsNamespaces = [];
+  prismaClientPath = JSON.stringify(prismaClientPath).slice(1, -1);
 
   for (const [listKey, list] of Object.entries(lists)) {
     const gqlNames = getGqlNames(list);
     const listTypeInfoName = `Lists.${listKey}.TypeInfo`;
 
-    interimCreateUpdateTypes.push(
-      printInterimType(list, listKey, gqlNames.createInputName, 'Create')
-    );
-    interimCreateUpdateTypes.push(
-      printInterimType(list, listKey, gqlNames.updateInputName, 'Update')
-    );
+    if (list.graphql.isEnabled.create) {
+      interimCreateUpdateTypes.push(
+        printInterimType(prismaClientPath, list, listKey, gqlNames.createInputName, 'Create')
+      );
+    }
+
+    if (list.graphql.isEnabled.update) {
+      interimCreateUpdateTypes.push(
+        printInterimType(prismaClientPath, list, listKey, gqlNames.updateInputName, 'Update')
+      );
+    }
 
     listsTypeInfo.push(`    readonly ${listKey}: ${listTypeInfoName};`);
-    listsNamespaces.push(printListTypeInfo(listKey, list));
+    listsNamespaces.push(printListTypeInfo(prismaClientPath, listKey, list));
   }
 
   return [
@@ -232,7 +264,7 @@ export function printGeneratedTypes(
     `  lists: {`,
     ...listsTypeInfo,
     `  };`,
-    `  prisma: import('.prisma/client').PrismaClient;`,
+    `  prisma: import('${prismaClientPath}').PrismaClient;`,
     `};`,
     ``,
     // we need to reference the `TypeInfo` above in another type that is also called `TypeInfo`

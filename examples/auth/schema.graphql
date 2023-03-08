@@ -15,7 +15,6 @@ type PasswordState {
 
 input UserWhereUniqueInput {
   id: ID
-  email: String
 }
 
 input UserWhereInput {
@@ -24,7 +23,6 @@ input UserWhereInput {
   NOT: [UserWhereInput!]
   id: IDFilter
   name: StringFilter
-  email: StringFilter
   password: PasswordFilter
   isAdmin: BooleanFilter
 }
@@ -80,7 +78,6 @@ input BooleanFilter {
 input UserOrderByInput {
   id: OrderDirection
   name: OrderDirection
-  email: OrderDirection
   isAdmin: OrderDirection
 }
 
@@ -143,7 +140,7 @@ input CreateInitialUserInput {
 }
 
 type Query {
-  users(where: UserWhereInput! = {}, orderBy: [UserOrderByInput!]! = [], take: Int, skip: Int! = 0): [User!]
+  users(where: UserWhereInput! = {}, orderBy: [UserOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: UserWhereUniqueInput): [User!]
   user(where: UserWhereUniqueInput!): User
   usersCount(where: UserWhereInput! = {}): Int
   keystone: KeystoneMeta!
@@ -188,6 +185,7 @@ type KeystoneAdminUIFieldMeta {
   description: String
   isOrderable: Boolean!
   isFilterable: Boolean!
+  isNonNull: [KeystoneAdminUIFieldMetaIsNonNull!]
   fieldMeta: JSON
   viewsIndex: Int!
   customViewsIndex: Int
@@ -195,6 +193,12 @@ type KeystoneAdminUIFieldMeta {
   listView: KeystoneAdminUIFieldMetaListView!
   itemView(id: ID): KeystoneAdminUIFieldMetaItemView
   search: QueryMode
+}
+
+enum KeystoneAdminUIFieldMetaIsNonNull {
+  read
+  create
+  update
 }
 
 type KeystoneAdminUIFieldMetaCreateView {

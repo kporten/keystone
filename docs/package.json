@@ -1,6 +1,6 @@
 {
   "name": "@keystone-6/website",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -22,7 +22,7 @@
     "@emotion/react": "^11.7.1",
     "@emotion/server": "11.10.0",
     "@emotion/weak-memoize": "^0.3.0",
-    "@keystone-6/fields-document": "^6.0.0",
+    "@keystone-6/fields-document": "^7.0.0",
     "@keystone-ui/core": "^5.0.1",
     "@keystone-ui/icons": "^6.0.1",
     "@markdoc/markdoc": "^0.2.0",
@@ -33,7 +33,7 @@
     "@types/markdown-it": "^12.2.3",
     "@types/react": "^18.0.9",
     "@types/react-dom": "^18.0.4",
-    "@vercel/og": "^0.0.21",
+    "@vercel/og": "^0.4.0",
     "classnames": "^2.3.1",
     "clipboard-copy": "^4.0.1",
     "date-fns": "^2.26.0",
@@ -56,9 +56,9 @@
   },
   "devDependencies": {
     "@types/lodash.debounce": "^4.0.6",
-    "@types/rss": "^0.0.29",
-    "next-sitemap": "^3.0.0",
-    "start-server-and-test": "^1.14.0",
+    "@types/rss": "^0.0.30",
+    "next-sitemap": "^4.0.0",
+    "start-server-and-test": "^2.0.0",
     "typescript": "~4.9.4"
   },
   "repository": "https://github.com/keystonejs/keystone/tree/main/docs"

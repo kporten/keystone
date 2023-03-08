@@ -7,17 +7,16 @@ import {
   orderDirectionEnum,
 } from '../../../types';
 import { graphql } from '../../..';
-import { assertCreateIsNonNullAllowed, assertReadIsNonNullAllowed } from '../../non-null-graphql';
+import { assertReadIsNonNullAllowed } from '../../non-null-graphql';
 import { filters } from '../../filters';
 
 export type CheckboxFieldConfig<ListTypeInfo extends BaseListTypeInfo> =
   CommonFieldConfig<ListTypeInfo> & {
     defaultValue?: boolean;
-    graphql?: {
-      read?: { isNonNull?: boolean };
-      create?: { isNonNull?: boolean };
+    db?: {
+      map?: string;
+      extendPrismaSchema?: (field: string) => string;
     };
-    db?: { map?: string };
   };
 
 export const checkbox =
@@ -31,7 +30,6 @@ export const checkbox =
     }
 
     assertReadIsNonNullAllowed(meta, config, false);
-    assertCreateIsNonNullAllowed(meta, config);
 
     return fieldType({
       kind: 'scalar',
@@ -39,16 +37,15 @@ export const checkbox =
       scalar: 'Boolean',
       default: { kind: 'literal', value: defaultValue },
       map: config.db?.map,
+      extendPrismaSchema: config.db?.extendPrismaSchema,
     })({
       ...config,
       input: {
         where: { arg: graphql.arg({ type: filters[meta.provider].Boolean.required }) },
         create: {
           arg: graphql.arg({
-            type: config.graphql?.create?.isNonNull
-              ? graphql.nonNull(graphql.Boolean)
-              : graphql.Boolean,
-            defaultValue: config.graphql?.create?.isNonNull ? defaultValue : undefined,
+            type: graphql.Boolean,
+            defaultValue: typeof defaultValue === 'boolean' ? defaultValue : undefined,
           }),
           resolve(val) {
             if (val === null) {
@@ -69,7 +66,7 @@ export const checkbox =
         orderBy: { arg: graphql.arg({ type: orderDirectionEnum }) },
       },
       output: graphql.field({
-        type: config.graphql?.read?.isNonNull ? graphql.nonNull(graphql.Boolean) : graphql.Boolean,
+        type: graphql.Boolean,
       }),
       __ksTelemetryFieldTypeName: '@keystone-6/checkbox',
       views: '@keystone-6/core/fields/types/checkbox/views',

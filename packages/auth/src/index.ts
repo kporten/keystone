@@ -115,7 +115,7 @@ export function createAuth<ListTypeInfo extends BaseListTypeInfo>({
    *
    * Must be added to the extendGraphqlSchema config. Can be composed.
    */
-  const extendGraphqlSchema = getSchemaExtension({
+  const authExtendGraphqlSchema = getSchemaExtension({
     identityField,
     listKey,
     secretField,
@@ -220,10 +220,10 @@ export function createAuth<ListTypeInfo extends BaseListTypeInfo>({
 
   async function authMiddleware({
     context,
-    isValidSession: wasAccessAllowed,
+    wasAccessAllowed,
   }: {
     context: KeystoneContext;
-    isValidSession: boolean; // TODO: rename "isValidSession" to "wasAccessAllowed"?
+    wasAccessAllowed: boolean;
   }): Promise<{ kind: 'redirect'; to: string } | void> {
     const { req } = context;
     const { pathname } = new URL(req!.url!, 'http://_');
@@ -251,6 +251,10 @@ export function createAuth<ListTypeInfo extends BaseListTypeInfo>({
 
   function defaultIsAccessAllowed({ session, sessionStrategy }: KeystoneContext) {
     return session !== undefined;
+  }
+
+  function defaultExtendGraphqlSchema<T>(schema: T) {
+    return schema;
   }
 
   /**
@@ -292,8 +296,9 @@ export function createAuth<ListTypeInfo extends BaseListTypeInfo>({
     if (!keystoneConfig.session) throw new TypeError('Missing .session configuration');
     const session = withItemData(keystoneConfig.session);
 
-    const existingExtendGraphQLSchema = keystoneConfig.extendGraphqlSchema;
+    const { extendGraphqlSchema = defaultExtendGraphqlSchema } = keystoneConfig;
     const listConfig = keystoneConfig.lists[listKey];
+
     return {
       ...keystoneConfig,
       ui,
@@ -302,9 +307,9 @@ export function createAuth<ListTypeInfo extends BaseListTypeInfo>({
         ...keystoneConfig.lists,
         [listKey]: { ...listConfig, fields: { ...listConfig.fields, ...fields } },
       },
-      extendGraphqlSchema: existingExtendGraphQLSchema
-        ? schema => existingExtendGraphQLSchema(extendGraphqlSchema(schema))
-        : extendGraphqlSchema,
+      extendGraphqlSchema: schema => {
+        return extendGraphqlSchema(authExtendGraphqlSchema(schema));
+      },
     };
   };
 

@@ -14,10 +14,33 @@ $ keystone [command]
 
 Commands
   dev           start the project in development mode (default)
-  postinstall   generate client APIs and types (optional)
-  build         build the project (must be done before using start)
-  start         start the project in production mode
+  postinstall   build the project (for development, optional)
+  build         build the project (required by \`keystone start\`)
+  start         start the project
   prisma        run Prisma CLI commands safely
+  telemetry     sets telemetry preference (enable/disable/status)
+Options
+  --fix (postinstall) @deprecated
+    do build the graphql or prisma schemas, don't validate them
+
+  --frozen (build)
+    don't build the graphql or prisma schemas, only validate them
+
+  --no-db-push (dev)
+    don't push any updates of your Prisma schema to your database
+
+  --no-prisma (build, dev)
+    don't build or validate the prisma schema
+
+  --no-server (dev)
+    don't start the express server
+
+  --no-ui (build, dev, start)
+    don't build and serve the AdminUI
+
+  --with-migrations (start)
+    trigger prisma to run migrations as part of startup
+
 ```
 
 {% hint kind="tip" %}
@@ -31,6 +54,12 @@ We recommend adding the following scripts to your project's `package.json` file:
 ```json
 {
   "scripts": {
+    "build": "keystone build",
+    "dev": "keystone dev",
+    "postinstall": "keystone postinstall",
+    "generate": "keystone prisma migrate dev",
+    "start": "keystone start --with-migrations",
+    {% else / %}
     "deploy": "keystone build && keystone prisma migrate deploy",
     "dev": "keystone dev",
     "postinstall": "keystone postinstall",
@@ -40,7 +69,7 @@ We recommend adding the following scripts to your project's `package.json` file:
 ```
 
 {% hint kind="tip" %}
-Note: the deploy script above assumes you are using migrations
+Note: Depending on where you are deploying the `prisma migrate deploy` step might be better in the `build` or as a separate step altogether.
 {% /hint %}
 
 Read on below for more details about each command, and see [bringing it all together](#bringing-it-all-together) for more details (including some important caveats) about how that "deploy" command works.
@@ -57,44 +86,48 @@ This is the command you use to start Keystone for local development. It will:
 - Generate and apply database migrations based on your Keystone Schema
 - Start the local dev server, which hosts the GraphQL API and Admin UI
 
-{% hint kind="warn" %}
-Keystone does not currently watch your local files for changes. If you update the config, schema or any other files in your keystone project you'll need to restart the server.
-{% /hint %}
+### dev flags
+
+- `--no-db-push` - Don't push any updates of your Prisma schema to your database
+- `--no-prisma` - Don't build or validate the prisma schema
+- `--no-server` - Don't start the express server, will still watch for changes and update the Admin UI and schema files
+- `--no-ui` - Don't build and serve the AdminUI
 
 ### About database migrations
 
-In development, Keystone will migrate the structure of your database for you in one of two ways depending on how you have configured `db.useMigrations`:
+When using `keystone dev` the default behaviour is for Keystone to update your database to match your schema using Prisma Migrate. This behaviour is great for the rapid iteration of a schema, but can be modified in the following ways:
 
-- If `db.useMigrations` is `false` (the default), Keystone will use Prisma Migrate to update your database so that it matches your schema. It may lose data while updating your database so you should only use this mode in initial development.
-- If `db.useMigrations` is `true`, Keystone will use Prisma Migrate to apply any existing migrations and prompt you to create a migration if there was a change to your schema.
+- Running `keystone dev --no-db-push` - This will skip the dev migration step and not perform any checks on your database to ensure it matches your schema. This can be useful if you have an existing database or want to handle all migrations yourself. Be aware that this may lead to GraphQL runtime errors if a table or table column is unavailable.
 
-When you are using migrations, the recommended workflow is to have `keystone dev` generate the migrations for you and apply them automatically in development.
-
-Commit the migration files to source control, then when you are hosting your app in production, use the `keystone prisma migrate deploy` command (see below) to deploy your migrations before starting Keystone.
+See [`prisma` command](#prisma) below for more information on database migrations.
 
 {% hint kind="tip" %}
-We strongly recommend enabling migrations if you are going to run your app in production. Not doing so risks data loss.
+Be careful of running `keystone dev` while pointing to a production database as this can cause data loss.
 {% /hint %}
 
 ### Resetting the database
 
-From time to time, in development you may want to reset the database and recreate it from scratch. You can do this by passing the `--reset-db` flag:
+From time to time, in development you may want to reset the database and recreate it from scratch.
+You can do this by using Prisma:
 
 ```bash
-$ keystone dev --reset-db
+$ keystone prisma db push --force-reset
 ```
 
 {% hint kind="error" %}
 Doing this will destroy your database, including all data
 {% /hint %}
 
-This is mainly useful early in a project's development lifecycle, when you want to test database initialisation scripts or create a fresh set of test data.
+This is typically useful early in a project's development lifecycle, when you want to test database initialisation scripts or create a fresh set of test data.
 
 ## postinstall
 
 ```bash
 $ keystone postinstall
 ```
+{% hint kind="tip" %}
+Note: `postinstall` is an alias for `keystone build --no-ui --frozen` we recommend switching to this `build` command
+{% /hint %}
 
 Keystone generates several files that your app may depend on, including the Node.js API and TypeScript definitions.
 
@@ -109,6 +142,9 @@ While the recommended way to fix this problem is to start your app using `keysto
 ```bash
 $ keystone postinstall --fix
 ```
+{% hint kind="tip" %}
+Note: `postinstall --fix` is an alias for `keystone build --no-ui` we recommend switching to this `build` command
+{% /hint %}
 
 ## build
 
@@ -118,7 +154,11 @@ $ keystone build
 
 This command generates the files needed for Keystone to start in **production** mode. You should run it during the build phase of your production deployment.
 
-It will also validate that the generated files you should have committed to source control are in sync with your Keystone Schema (see `postinstall` above).
+It will also validate that the generated files you should have committed to source control are in sync with your Keystone Schema.
+### build flags
+- `--frozen` - Don't update the graphql or prisma schemas, only validate them, exits with error if the schemas don't match what keystone would generate.
+- `--no-prisma` - Don't build or validate the prisma schema
+- `--no-ui` - Don't build the AdminUI
 
 ## start
 
@@ -129,6 +169,9 @@ $ keystone start
 This command starts Keystone in **production** mode. It requires a build to have been generated (see `build` above).
 
 It will not generate or apply any database migrations - these should be run during the **build** or **release** phase of your production deployment.
+### start flags
+- `--with-migrations` - Trigger prisma to run migrations as part of startup
+- `--no-ui` - Don't serve the AdminUI
 
 ## prisma
 
@@ -191,6 +234,9 @@ Start Keystone in production mode:
 ```bash
 yarn keystone start
 ```
+{% hint kind="tip" %}
+Note: To run migrations before you start Keystone use `keystone start --with-migrations`
+{% /hint %}
 
 #### Notes
 

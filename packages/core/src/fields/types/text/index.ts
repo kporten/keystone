@@ -7,7 +7,7 @@ import {
   FieldTypeFunc,
 } from '../../../types';
 import { graphql } from '../../..';
-import { assertCreateIsNonNullAllowed, assertReadIsNonNullAllowed } from '../../non-null-graphql';
+import { assertReadIsNonNullAllowed } from '../../non-null-graphql';
 import { filters } from '../../filters';
 
 export type TextFieldConfig<ListTypeInfo extends BaseListTypeInfo> =
@@ -25,10 +25,10 @@ export type TextFieldConfig<ListTypeInfo extends BaseListTypeInfo> =
       length?: { min?: number; max?: number };
     };
     defaultValue?: string;
-    graphql?: { create?: { isNonNull?: boolean }; read?: { isNonNull?: boolean } };
     db?: {
       isNullable?: boolean;
       map?: string;
+      extendPrismaSchema?: (field: string) => string;
       /**
        * The underlying database type.
        * Only some of the types are supported on PostgreSQL and MySQL.
@@ -100,8 +100,6 @@ export const text =
 
     assertReadIsNonNullAllowed(meta, config, isNullable);
 
-    assertCreateIsNonNullAllowed(meta, config);
-
     const mode = isNullable ? 'optional' : 'required';
 
     const defaultValue =
@@ -114,6 +112,7 @@ export const text =
       index: isIndexed === true ? 'index' : isIndexed || undefined,
       map: config.db?.map,
       nativeType: config.db?.nativeType,
+      extendPrismaSchema: config.db?.extendPrismaSchema,
     })({
       ...config,
       hooks: {
@@ -159,10 +158,8 @@ export const text =
         },
         create: {
           arg: graphql.arg({
-            type: config.graphql?.create?.isNonNull
-              ? graphql.nonNull(graphql.String)
-              : graphql.String,
-            defaultValue: config.graphql?.create?.isNonNull ? defaultValue : undefined,
+            type: graphql.String,
+            defaultValue: typeof defaultValue === 'string' ? defaultValue : undefined,
           }),
           resolve(val) {
             if (val === undefined) {
@@ -175,7 +172,7 @@ export const text =
         orderBy: { arg: graphql.arg({ type: orderDirectionEnum }) },
       },
       output: graphql.field({
-        type: config.graphql?.read?.isNonNull ? graphql.nonNull(graphql.String) : graphql.String,
+        type: graphql.String,
       }),
       __ksTelemetryFieldTypeName: '@keystone-6/text',
       views: '@keystone-6/core/fields/types/text/views',

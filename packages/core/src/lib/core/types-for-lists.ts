@@ -1,4 +1,4 @@
-import { CacheHint } from 'apollo-server-types';
+import { CacheHint } from '@apollo/cache-control-types';
 import { GraphQLString, isInputObjectType } from 'graphql';
 import {
   BaseItem,
@@ -40,6 +40,11 @@ export type InitialisedField = Omit<NextFieldType, 'dbField' | 'access' | 'graph
       filter: boolean | ((args: FilterOrderArgs<BaseListTypeInfo>) => MaybePromise<boolean>);
       orderBy: boolean | ((args: FilterOrderArgs<BaseListTypeInfo>) => MaybePromise<boolean>);
     };
+    isNonNull: {
+      read: boolean;
+      create: boolean;
+      update: boolean;
+    };
     cacheHint: CacheHint | undefined;
   };
 };
@@ -69,6 +74,7 @@ export type InitialisedList = {
   };
   lists: Record<string, InitialisedList>;
   dbMap: string | undefined;
+  extendPrismaSchema: ((schema: string) => string) | undefined;
   graphql: {
     isEnabled: IsEnabled;
   };
@@ -116,23 +122,13 @@ function getIsEnabled(listsConfig: KeystoneConfig['lists']) {
         filter: false,
         orderBy: false,
       };
-    } else if (omit === undefined) {
-      isEnabled[listKey] = {
-        type: true,
-        query: true,
-        create: true,
-        update: true,
-        delete: true,
-        filter: defaultIsFilterable ?? true,
-        orderBy: defaultIsOrderable ?? true,
-      };
     } else {
       isEnabled[listKey] = {
         type: true,
-        query: !omit.includes('query'),
-        create: !omit.includes('create'),
-        update: !omit.includes('update'),
-        delete: !omit.includes('delete'),
+        query: !omit?.query,
+        create: !omit?.create,
+        update: !omit?.update,
+        delete: !omit?.delete,
         filter: defaultIsFilterable ?? true,
         orderBy: defaultIsOrderable ?? true,
       };
@@ -154,10 +150,9 @@ function getListsWithInitialisedFields(
   for (const [listKey, list] of Object.entries(listsConfig)) {
     const intermediateList = intermediateLists[listKey];
     const resultFields: Record<string, InitialisedField> = {};
-
     const groups: FieldGroupConfig[] = [];
-
     const fieldKeys = Object.keys(list.fields);
+
     for (const [idx, [fieldKey, fieldFunc]] of Object.entries(list.fields).entries()) {
       if (fieldKey.startsWith('__group')) {
         const group = fieldFunc as any;
@@ -194,11 +189,11 @@ function getListsWithInitialisedFields(
       throwIfNotAFilter(f.isOrderable, listKey, 'isOrderable');
 
       const omit = f.graphql?.omit;
-      const read = omit !== true && !omit?.includes('read');
+      const read = omit !== true && !omit?.read;
       const _isEnabled = {
         read,
-        update: omit !== true && !omit?.includes('update'),
-        create: omit !== true && !omit?.includes('create'),
+        create: omit !== true && !omit?.create,
+        update: omit !== true && !omit?.update,
         // Filter and orderBy can be defaulted at the list level, otherwise they
         // default to `false` if no value was set at the list level.
         filter: read && (f.isFilterable ?? intermediateList.graphql.isEnabled.filter),
@@ -213,8 +208,13 @@ function getListsWithInitialisedFields(
         graphql: {
           cacheHint: f.graphql?.cacheHint,
           isEnabled: _isEnabled,
+          isNonNull: {
+            read: f.graphql?.isNonNull?.read ?? false,
+            create: f.graphql?.isNonNull?.create ?? false,
+            update: f.graphql?.isNonNull?.update ?? false,
+          },
         },
-        input: { ...f.input },
+        input: { ...f.input }, // copy
       };
     }
 
@@ -240,6 +240,7 @@ function getListsWithInitialisedFields(
       ...getNamesFromList(listKey, list),
       access: parseListAccessControl(list.access),
       dbMap: list.db?.map,
+      extendPrismaSchema: list.db?.extendPrismaSchema,
       types: listGraphqlTypes[listKey].types,
       ui: {
         labelField,
@@ -296,6 +297,37 @@ function introspectGraphQLTypes(lists: Record<string, InitialisedList>) {
   }
 }
 
+function stripDefaultValue(thing: graphql.Arg<graphql.InputType, boolean>) {
+  return graphql.arg({
+    ...thing,
+    defaultValue: undefined,
+  });
+}
+
+function graphqlArgForInputField(field: InitialisedField, operation: 'create' | 'update') {
+  const input = field.input?.[operation];
+  if (!input?.arg || !field.graphql.isEnabled[operation]) return;
+  if (!field.graphql.isNonNull[operation]) return stripDefaultValue(input.arg);
+  if (input.arg.type.kind === 'non-null') return;
+
+  return graphql.arg({
+    ...input.arg,
+    type: graphql.nonNull(input.arg.type),
+  });
+}
+
+function graphqlForOutputField(field: InitialisedField) {
+  const output = field.output;
+  if (!output || !field.graphql.isEnabled.read) return output;
+  if (!field.graphql.isNonNull.read) return output;
+  if (output.type.kind === 'non-null') return output;
+
+  return graphql.field({
+    ...(output as any),
+    type: graphql.nonNull(output.type),
+  });
+}
+
 function getListGraphqlTypes(
   listsConfig: KeystoneConfig['lists'],
   lists: Record<string, InitialisedList>,
@@ -324,8 +356,10 @@ function getListGraphqlTypes(
               ) {
                 return [];
               }
+
+              const outputFieldRoot = graphqlForOutputField(field);
               return [
-                [fieldPath, field.output] as const,
+                [fieldPath, outputFieldRoot] as const,
                 ...Object.entries(field.extraOutputFields || {}),
               ].map(([outputTypeFieldName, outputField]) => {
                 return [
@@ -395,12 +429,15 @@ function getListGraphqlTypes(
       name: names.createInputName,
       fields: () => {
         const { fields } = lists[listKey];
-        return Object.fromEntries(
-          Object.entries(fields).flatMap(([key, field]) => {
-            if (!field.input?.create?.arg || !field.graphql.isEnabled.create) return [];
-            return [[key, field.input.create.arg]] as const;
-          })
-        );
+        const ret: Record<keyof typeof fields, graphql.Arg<graphql.InputType>> = {};
+
+        for (const key in fields) {
+          const arg = graphqlArgForInputField(fields[key], 'create');
+          if (!arg) continue;
+          ret[key] = arg;
+        }
+
+        return ret;
       },
     });
 
@@ -408,12 +445,15 @@ function getListGraphqlTypes(
       name: names.updateInputName,
       fields: () => {
         const { fields } = lists[listKey];
-        return Object.fromEntries(
-          Object.entries(fields).flatMap(([key, field]) => {
-            if (!field.input?.update?.arg || !field.graphql.isEnabled.update) return [];
-            return [[key, field.input.update.arg]] as const;
-          })
-        );
+        const ret: Record<keyof typeof fields, graphql.Arg<graphql.InputType>> = {};
+
+        for (const key in fields) {
+          const arg = graphqlArgForInputField(fields[key], 'update');
+          if (!arg) continue;
+          ret[key] = arg;
+        }
+
+        return ret;
       },
     });
 
@@ -456,6 +496,7 @@ function getListGraphqlTypes(
       }),
       take,
       skip: graphql.arg({ type: graphql.nonNull(graphql.Int), defaultValue: 0 }),
+      cursor: graphql.arg({ type: uniqueWhere }),
     };
 
     const isEnabled = intermediateLists[listKey].graphql.isEnabled;

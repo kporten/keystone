@@ -1,3 +1,4 @@
+import { maybeCacheControlFromInfo } from '@apollo/cache-control-types';
 import { GraphQLResolveInfo } from 'graphql';
 import { FindManyArgsValue, BaseItem, KeystoneContext, OrderDirection } from '../../../types';
 import { getOperationAccess, getAccessFilters } from '../access-control';
@@ -107,7 +108,7 @@ export async function findOne(
 }
 
 export async function findMany(
-  { where, take, skip, orderBy: rawOrderBy }: FindManyArgsValue,
+  { where, take, skip, orderBy: rawOrderBy, cursor }: FindManyArgsValue,
   list: InitialisedList,
   context: KeystoneContext,
   info: GraphQLResolveInfo,
@@ -144,11 +145,12 @@ export async function findMany(
       orderBy,
       take: take ?? undefined,
       skip,
+      cursor: cursor ?? undefined,
     })
   );
 
-  if (info.cacheControl && list.cacheHint) {
-    info.cacheControl.setCacheHint(
+  if (list.cacheHint) {
+    maybeCacheControlFromInfo(info)?.setCacheHint(
       list.cacheHint({ results, operationName: info.operation.name?.value, meta: false }) as any
     );
   }
@@ -241,8 +243,8 @@ export async function count(
       where: extraFilter === undefined ? resolvedWhere : { AND: [resolvedWhere, extraFilter] },
     })
   );
-  if (info.cacheControl && list.cacheHint) {
-    info.cacheControl.setCacheHint(
+  if (list.cacheHint) {
+    maybeCacheControlFromInfo(info)?.setCacheHint(
       list.cacheHint({
         results: count,
         operationName: info.operation.name?.value,

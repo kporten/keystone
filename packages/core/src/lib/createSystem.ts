@@ -3,6 +3,7 @@ import { FieldData, KeystoneConfig, getGqlNames } from '../types';
 
 import { createAdminMeta } from '../admin-ui/system/createAdminMeta';
 import { PrismaModule } from '../artifacts';
+import { allowAll } from '../access';
 import { createGraphQLSchema } from './createGraphQLSchema';
 import { makeCreateContext } from './context/createContext';
 import { initialiseLists } from './core/types-for-lists';
@@ -24,7 +25,7 @@ function getSudoGraphQLSchema(config: KeystoneConfig) {
     ...config,
     ui: {
       ...config.ui,
-      isAccessAllowed: () => true,
+      isAccessAllowed: allowAll,
     },
     lists: Object.fromEntries(
       Object.entries(config.lists).map(([listKey, list]) => {
@@ -32,8 +33,8 @@ function getSudoGraphQLSchema(config: KeystoneConfig) {
           listKey,
           {
             ...list,
-            access: () => true,
-            graphql: { ...(list.graphql || {}), omit: [] },
+            access: allowAll,
+            graphql: { ...(list.graphql || {}), omit: {} },
             fields: Object.fromEntries(
               Object.entries(list.fields).map(([fieldKey, field]) => {
                 if (fieldKey.startsWith('__group')) return [fieldKey, field];
@@ -43,10 +44,10 @@ function getSudoGraphQLSchema(config: KeystoneConfig) {
                     const f = field(data);
                     return {
                       ...f,
-                      access: () => true,
+                      access: allowAll,
                       isFilterable: true,
                       isOrderable: true,
-                      graphql: { ...(f.graphql || {}), omit: [] },
+                      graphql: { ...(f.graphql || {}), omit: {} },
                     };
                   },
                 ];
@@ -57,18 +58,16 @@ function getSudoGraphQLSchema(config: KeystoneConfig) {
       })
     ),
   };
+
   const lists = initialiseLists(transformedConfig);
   const adminMeta = createAdminMeta(transformedConfig, lists);
-  return createGraphQLSchema(transformedConfig, lists, adminMeta);
+  return createGraphQLSchema(transformedConfig, lists, adminMeta, true);
 }
 
 export function createSystem(config: KeystoneConfig) {
   const lists = initialiseLists(config);
-
   const adminMeta = createAdminMeta(config, lists);
-
-  const graphQLSchema = createGraphQLSchema(config, lists, adminMeta);
-
+  const graphQLSchema = createGraphQLSchema(config, lists, adminMeta, false);
   const sudoGraphQLSchema = getSudoGraphQLSchema(config);
 
   return {
@@ -76,19 +75,17 @@ export function createSystem(config: KeystoneConfig) {
     adminMeta,
     getKeystone: (prismaModule: PrismaModule) => {
       const prismaClient = new prismaModule.PrismaClient({
-        log: config.db.enableLogging ? ['query'] : undefined,
+        log:
+          config.db.enableLogging === true
+            ? ['query']
+            : config.db.enableLogging === false
+            ? undefined
+            : config.db.enableLogging,
         datasources: { [config.db.provider]: { url: config.db.url } },
       });
 
       setWriteLimit(prismaClient, pLimit(config.db.provider === 'sqlite' ? 1 : Infinity));
       setPrismaNamespace(prismaClient, prismaModule.Prisma);
-      prismaClient.$on('beforeExit', async () => {
-        // Prisma is failing to properly clean up its child processes
-        // https://github.com/keystonejs/keystone/issues/5477
-        // We explicitly send a SIGINT signal to the prisma child process on exit
-        // to ensure that the process is cleaned up appropriately.
-        prismaClient._engine.child?.kill('SIGINT');
-      });
 
       const context = makeCreateContext({
         graphQLSchema,
@@ -102,10 +99,12 @@ export function createSystem(config: KeystoneConfig) {
       });
 
       return {
+        // TODO: remove, replace with server.onStart
         async connect() {
           await prismaClient.$connect();
           await config.db.onConnect?.(context);
         },
+        // TODO: remove, only used by tests
         async disconnect() {
           await prismaClient.$disconnect();
         },

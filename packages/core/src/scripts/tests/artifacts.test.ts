@@ -1,4 +1,3 @@
-import fs from 'fs/promises';
 import { ExitError } from '../utils';
 import {
   basicKeystoneConfig,
@@ -6,11 +5,12 @@ import {
   recordConsole,
   runCommand,
   schemas,
+  customPrismaKeystoneConfig,
   symlinkKeystoneDeps,
   testdir,
 } from './utils';
 
-describe.each(['postinstall', 'build', 'prisma migrate status'])('%s', command => {
+describe.each(['postinstall', 'build --frozen', 'prisma migrate status'])('%s', command => {
   test('logs an error and exits with 1 when the schemas do not exist and the terminal is non-interactive', async () => {
     const tmp = await testdir({
       ...symlinkKeystoneDeps,
@@ -20,7 +20,7 @@ describe.each(['postinstall', 'build', 'prisma migrate status'])('%s', command =
     await expect(runCommand(tmp, command)).rejects.toEqual(new ExitError(1));
     expect(recording()).toMatchInlineSnapshot(`
       "Your Prisma and GraphQL schemas are not up to date
-      Please run keystone postinstall --fix to update your Prisma and GraphQL schemas"
+      Use keystone dev to update the Prisma and GraphQL schemas"
     `);
   });
 });
@@ -37,14 +37,14 @@ describe('postinstall', () => {
       'keystone.js': basicKeystoneConfig,
     });
     const recording = recordConsole({
-      'Would you like to update your Prisma and GraphQL schemas?': true,
+      'Replace the Prisma and GraphQL schemas?': true,
     });
     await runCommand(tmp, 'postinstall');
     const files = await getFiles(tmp, schemasMatch);
     expect(files).toEqual(await getFiles(`${__dirname}/fixtures/basic-project`, schemasMatch));
     expect(recording()).toMatchInlineSnapshot(`
       "Your Prisma and GraphQL schemas are not up to date
-      Prompt: Would you like to update your Prisma and GraphQL schemas? true
+      Prompt: Replace the Prisma and GraphQL schemas? true
       ✨ GraphQL and Prisma schemas are up to date"
     `);
   });
@@ -57,6 +57,19 @@ describe('postinstall', () => {
     await runCommand(tmp, 'postinstall --fix');
     const files = await getFiles(tmp, schemasMatch);
     expect(files).toEqual(await getFiles(`${__dirname}/fixtures/basic-project`, schemasMatch));
+    expect(recording()).toMatchInlineSnapshot(`"✨ Generated GraphQL and Prisma schemas"`);
+  });
+  test('customising primsa schema through extendPrisma works', async () => {
+    const tmp = await testdir({
+      ...symlinkKeystoneDeps,
+      'keystone.js': customPrismaKeystoneConfig,
+    });
+    const recording = recordConsole();
+    await runCommand(tmp, 'postinstall --fix');
+    const files = await getFiles(tmp, ['schema.prisma']);
+    expect(files).toEqual(
+      await getFiles(`${__dirname}/fixtures/custom-prisma-project`, ['schema.prisma'])
+    );
     expect(recording()).toMatchInlineSnapshot(`"✨ Generated GraphQL and Prisma schemas"`);
   });
   test("does not prompt, error or modify the schemas if they're already up to date", async () => {
@@ -80,44 +93,6 @@ describe('postinstall', () => {
     const recording = recordConsole();
     await runCommand(tmp, 'postinstall');
     expect(await getFiles(tmp, ['node_modules/.keystone/**/*'])).toMatchSnapshot();
-    expect(recording()).toMatchInlineSnapshot(`"✨ GraphQL and Prisma schemas are up to date"`);
-  });
-  test('writes the next graphql api route files when the generateNextGraphqlAPI experimental flag is on', async () => {
-    const tmp = await testdir({
-      ...symlinkKeystoneDeps,
-      ...schemas,
-      'keystone.js': await fs.readFile(
-        `${__dirname}/fixtures/generate-next-graphql-api.ts`,
-        'utf8'
-      ),
-    });
-    const recording = recordConsole();
-    await runCommand(tmp, 'postinstall');
-    expect(await getFiles(tmp, ['node_modules/.keystone/next/graphql-api.{d.ts,js}']))
-      .toMatchInlineSnapshot(`
-      ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ node_modules/.keystone/next/graphql-api.d.ts ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
-      export const config: any;
-      export default config;
-
-      ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ node_modules/.keystone/next/graphql-api.js ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
-      import keystoneConfig from '../../../keystone';
-      import { PrismaClient } from '.prisma/client';
-      import { nextGraphQLAPIRoute } from '@keystone-6/core/___internal-do-not-use-will-break-in-patch/next-graphql';
-      import path from 'path';
-
-          path.join(__dirname, "../../../app.db");
-          path.join(process.cwd(), "app.db");
-          
-
-      export const config = {
-        api: {
-          bodyParser: false,
-        },
-      };
-
-      export default nextGraphQLAPIRoute(keystoneConfig, PrismaClient);
-
-    `);
     expect(recording()).toMatchInlineSnapshot(`"✨ GraphQL and Prisma schemas are up to date"`);
   });
 });

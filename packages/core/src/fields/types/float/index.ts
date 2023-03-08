@@ -8,11 +8,7 @@ import {
   orderDirectionEnum,
 } from '../../../types';
 import { graphql } from '../../..';
-import {
-  assertCreateIsNonNullAllowed,
-  assertReadIsNonNullAllowed,
-  getResolvedIsNullable,
-} from '../../non-null-graphql';
+import { assertReadIsNonNullAllowed, getResolvedIsNullable } from '../../non-null-graphql';
 import { filters } from '../../filters';
 
 export type FloatFieldConfig<ListTypeInfo extends BaseListTypeInfo> =
@@ -24,17 +20,10 @@ export type FloatFieldConfig<ListTypeInfo extends BaseListTypeInfo> =
       max?: number;
       isRequired?: boolean;
     };
-    graphql?: {
-      create?: {
-        isNonNull?: boolean;
-      };
-      read?: {
-        isNonNull?: boolean;
-      };
-    };
     db?: {
       isNullable?: boolean;
       map?: string;
+      extendPrismaSchema?: (field: string) => string;
     };
   };
 
@@ -87,10 +76,7 @@ export const float =
 
     assertReadIsNonNullAllowed(meta, config, isNullable);
 
-    assertCreateIsNonNullAllowed(meta, config);
-
     const mode = isNullable === false ? 'required' : 'optional';
-
     const fieldLabel = config.label ?? humanize(meta.fieldKey);
 
     return fieldType({
@@ -101,6 +87,7 @@ export const float =
       default:
         typeof defaultValue === 'number' ? { kind: 'literal', value: defaultValue } : undefined,
       map: config.db?.map,
+      extendPrismaSchema: config.db?.extendPrismaSchema,
     })({
       ...config,
       hooks: {
@@ -138,13 +125,8 @@ export const float =
         },
         create: {
           arg: graphql.arg({
-            type: config.graphql?.create?.isNonNull
-              ? graphql.nonNull(graphql.Float)
-              : graphql.Float,
-            defaultValue:
-              config.graphql?.create?.isNonNull && typeof defaultValue === 'number'
-                ? defaultValue
-                : undefined,
+            type: graphql.Float,
+            defaultValue: typeof defaultValue === 'number' ? defaultValue : undefined,
           }),
           resolve(value) {
             if (value === undefined) {
@@ -157,7 +139,7 @@ export const float =
         orderBy: { arg: graphql.arg({ type: orderDirectionEnum }) },
       },
       output: graphql.field({
-        type: config.graphql?.read?.isNonNull ? graphql.nonNull(graphql.Float) : graphql.Float,
+        type: graphql.Float,
       }),
       __ksTelemetryFieldTypeName: '@keystone-6/float',
       views: '@keystone-6/core/fields/types/float/views',

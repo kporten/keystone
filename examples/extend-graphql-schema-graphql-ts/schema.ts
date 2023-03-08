@@ -13,6 +13,7 @@ export const lists: Lists = {
         options: [
           { label: 'Draft', value: 'draft' },
           { label: 'Published', value: 'published' },
+          { label: 'Banned', value: 'banned' },
         ],
       }),
       content: text(),
@@ -63,6 +64,7 @@ export const extendGraphqlSchema = graphql.extend(base => {
       }),
     },
   });
+
   return {
     mutation: {
       publishPost: graphql.field({
@@ -81,19 +83,32 @@ export const extendGraphqlSchema = graphql.extend(base => {
           });
         },
       }),
+
+      // only add this mutation for a sudo Context (this is not usable from the API)
+      ...(base.schema.extensions.sudo
+        ? {
+            banPost: graphql.field({
+              type: base.object('Post'),
+              args: { id: graphql.arg({ type: graphql.nonNull(graphql.ID) }) },
+              resolve(source, { id }, context: Context) {
+                return context.db.Post.updateOne({
+                  where: { id },
+                  data: { status: 'banned' },
+                });
+              },
+            }),
+          }
+        : {}),
     },
     query: {
       recentPosts: graphql.field({
         type: graphql.list(graphql.nonNull(base.object('Post'))),
         args: {
           id: graphql.arg({ type: graphql.nonNull(graphql.ID) }),
-          days: graphql.arg({ type: graphql.nonNull(graphql.Int), defaultValue: 7 }),
+          seconds: graphql.arg({ type: graphql.nonNull(graphql.Int), defaultValue: 600 }),
         },
-        resolve(source, { id, days }, context: Context) {
-          // Create a date string <days> in the past from now()
-          const cutoff = new Date(
-            new Date().setUTCDate(new Date().getUTCDate() - days)
-          ).toISOString();
+        resolve(source, { id, seconds }, context: Context) {
+          const cutoff = new Date(Date.now() - seconds * 1000);
 
           // Note we use `context.db.Post` here as we have a return type
           // of [Post], and this API provides results in the correct format.

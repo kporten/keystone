@@ -85,6 +85,11 @@ export type TodoCreateInput = {
   readonly title?: Scalars["String"] | null;
 };
 
+export type KeystoneAdminUIFieldMetaIsNonNull =
+  | "read"
+  | "create"
+  | "update";
+
 export type KeystoneAdminUIFieldMetaCreateViewFieldMode =
   | "edit"
   | "hidden";
@@ -112,18 +117,18 @@ export type KeystoneAdminUISortDirection =
 
 type ResolvedTodoCreateInput = {
   id?: undefined;
-  title?: import('.prisma/client').Prisma.TodoCreateInput["title"];
+  title?: import('@prisma/client').Prisma.TodoCreateInput["title"];
 };
 
 type ResolvedTodoUpdateInput = {
   id?: undefined;
-  title?: import('.prisma/client').Prisma.TodoUpdateInput["title"];
+  title?: import('@prisma/client').Prisma.TodoUpdateInput["title"];
 };
 
 export declare namespace Lists {
   export type Todo = import('@keystone-6/core').ListConfig<Lists.Todo.TypeInfo, any>;
   namespace Todo {
-    export type Item = import('.prisma/client').Todo;
+    export type Item = import('@prisma/client').Todo;
     export type TypeInfo = {
       key: "Todo";
       isSingleton: false;
@@ -137,8 +142,8 @@ export declare namespace Lists {
         orderBy: TodoOrderByInput;
       };
       prisma: {
-        create: ResolvedTodoCreateInput
-        update: ResolvedTodoUpdateInput
+        create: ResolvedTodoCreateInput;
+        update: ResolvedTodoUpdateInput;
       };
       all: __TypeInfo;
     };
@@ -150,7 +155,7 @@ export type TypeInfo = {
   lists: {
     readonly Todo: Lists.Todo.TypeInfo;
   };
-  prisma: import('.prisma/client').PrismaClient;
+  prisma: import('@prisma/client').PrismaClient;
 };
 
 type __TypeInfo = TypeInfo;

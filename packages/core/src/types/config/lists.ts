@@ -1,4 +1,4 @@
-import type { CacheHint } from 'apollo-server-types';
+import type { CacheHint } from '@apollo/cache-control-types';
 import type { MaybePromise } from '../utils';
 import { BaseListTypeInfo } from '../type-info';
 import { KeystoneContextFromListTypeInfo } from '..';
@@ -9,7 +9,7 @@ import type { BaseFields, FilterOrderArgs } from './fields';
 export type ListSchemaConfig = Record<string, ListConfig<any, BaseFields<BaseListTypeInfo>>>;
 
 export type IdFieldConfig =
-  | { kind: 'cuid' | 'uuid' }
+  | { kind: 'cuid' | 'uuid'; type?: 'String' }
   | {
       kind: 'autoincrement';
       /**
@@ -220,7 +220,14 @@ export type ListGraphQLConfig = {
   // including from the point of view of relationships to this list.
   //
   // Default: undefined
-  omit?: true | readonly ('query' | 'create' | 'update' | 'delete')[];
+  omit?:
+    | true
+    | {
+        query?: boolean;
+        create?: boolean;
+        update?: boolean;
+        delete?: boolean;
+      };
 };
 
 export type CacheHintArgs = { results: any; operationName?: string; meta: boolean };
@@ -236,4 +243,10 @@ export type ListDBConfig = {
    * the default (derived from the list key)
    */
   map?: string;
+  /**
+   * Customise the Prisma Schema for this list. This function is passed the
+   * Prisma Model for this list and should return a string containing the valid
+   * Prisma Model definition.
+   */
+  extendPrismaSchema?: (schema: string) => string;
 };

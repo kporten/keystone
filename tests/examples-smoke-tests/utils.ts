@@ -18,31 +18,16 @@ export async function loadIndex(page: playwright.Page) {
 }
 
 async function deleteAllData(projectDir: string) {
-  /**
-   * As of @prisma/client@3.1.1 it appears that the prisma client runtime tries to resolve the path to the prisma schema
-   * from process.cwd(). This is not always the project directory we want to run keystone from.
-   * Here we mutate the process.cwd global with a fn that returns the project directory we expect, such that prisma
-   * can retrieve the correct schema file.
-   */
-  const prevCwd = process.cwd;
-  try {
-    process.cwd = () => {
-      return projectDir;
-    };
-    const { PrismaClient } = require(path.join(projectDir, 'node_modules/.prisma/client'));
+  const { PrismaClient } = require(path.join(projectDir, 'node_modules/.myprisma/client'));
+  const prisma = new PrismaClient();
 
-    let prisma = new PrismaClient();
+  await prisma.$transaction(
+    Object.values(prisma)
+      .filter((x: any) => x?.deleteMany)
+      .map((x: any) => x?.deleteMany?.({}))
+  );
 
-    await prisma.$transaction(
-      Object.values(prisma)
-        .filter((x: any) => x?.deleteMany)
-        .map((x: any) => x?.deleteMany?.({}))
-    );
-
-    await prisma.$disconnect();
-  } finally {
-    process.cwd = prevCwd;
-  }
+  await prisma.$disconnect();
 }
 
 const treeKill = promisify(_treeKill);
@@ -52,7 +37,7 @@ jest.setTimeout(10000000);
 
 const promiseSignal = (): Promise<void> & { resolve: () => void } => {
   let resolve;
-  let promise = new Promise<void>(_resolve => {
+  const promise = new Promise<void>(_resolve => {
     resolve = _resolve;
   });
   return Object.assign(promise, { resolve: resolve as any });
@@ -86,13 +71,13 @@ export const exampleProjectTests = (
     });
 
     async function startKeystone(command: 'start' | 'dev') {
-      let keystoneProcess = execa('yarn', ['keystone', command], {
+      const keystoneProcess = execa('yarn', ['keystone', command], {
         cwd: projectDir,
         env: process.env,
       });
-      let adminUIReady = promiseSignal();
-      let listener = (chunk: any) => {
-        let stringified = chunk.toString('utf8');
+      const adminUIReady = promiseSignal();
+      const listener = (chunk: any) => {
+        const stringified = chunk.toString('utf8');
         if (process.env.VERBOSE) {
           console.log(stringified);
         }
@@ -121,7 +106,7 @@ export const exampleProjectTests = (
 
     if (mode === 'prod') {
       test('build keystone', async () => {
-        let keystoneBuildProcess = execa('yarn', ['build'], {
+        const keystoneBuildProcess = execa('yarn', ['build'], {
           cwd: projectDir,
           env: process.env,
         });

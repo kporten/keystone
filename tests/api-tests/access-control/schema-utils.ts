@@ -11,13 +11,26 @@ const yesNo = (x: boolean | undefined) => (x === true ? 'Y' : x === false ? 'N' 
 type ListConfig = {
   isFilterable?: false;
   isOrderable?: false;
-  omit?: true | ('query' | 'create' | 'update' | 'delete')[];
+  omit?:
+    | true
+    | {
+        query?: boolean;
+        create?: boolean;
+        update?: boolean;
+        delete?: boolean;
+      };
 };
 
 type FieldConfig = {
   isFilterable?: false;
   isOrderable?: false;
-  omit?: true | ('read' | 'create' | 'update')[];
+  omit?:
+    | true
+    | {
+        read: boolean;
+        create: boolean;
+        update: boolean;
+      };
 };
 
 const getListPrefix = ({ isFilterable, isOrderable, omit }: ListConfig) => {
@@ -28,7 +41,7 @@ const getListPrefix = ({ isFilterable, isOrderable, omit }: ListConfig) => {
     return `${s}True`;
   } else {
     // prettier-ignore
-    return `${s}${yesNo(omit.includes('create'))}C${yesNo(omit.includes('query'))}Q${yesNo(omit.includes('update'))}U${yesNo(omit.includes('delete'))}D`;
+    return `${s}${yesNo(omit.create)}C${yesNo(omit.query)}Q${yesNo(omit.update)}U${yesNo(omit.delete)}D`;
   }
 };
 const getFieldPrefix = ({ isFilterable, isOrderable, omit }: FieldConfig) => {
@@ -39,7 +52,7 @@ const getFieldPrefix = ({ isFilterable, isOrderable, omit }: FieldConfig) => {
     return `${s}True`;
   } else {
     // prettier-ignore
-    return `${s}${yesNo(omit.includes('read'))}Read${yesNo(omit.includes('create'))}Create${yesNo(omit.includes('update'))}Update`;
+    return `${s}${yesNo(omit.read)}Read${yesNo(omit.create)}Create${yesNo(omit.update)}Update`;
   }
 };
 
@@ -75,11 +88,18 @@ for (const isFilterable of [undefined, false as const]) {
       if (flag === undefined || flag === true) {
         fieldMatrix.push({ isFilterable, isOrderable, omit: flag });
       } else {
-        for (const query of [undefined, 'read']) {
-          for (const create of [undefined, 'create']) {
-            for (const update of [undefined, 'update']) {
-              const omit = [query, create, update].filter(x => x) as FieldConfig['omit'];
-              fieldMatrix.push({ isFilterable, isOrderable, omit });
+        for (const read of [false, true]) {
+          for (const create of [false, true]) {
+            for (const update of [false, true]) {
+              fieldMatrix.push({
+                isFilterable,
+                isOrderable,
+                omit: {
+                  read,
+                  create,
+                  update,
+                },
+              });
             }
           }
         }
