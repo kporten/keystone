@@ -1,5 +1,15 @@
 # @keystone-6/core
 
+## 5.2.0
+
+### Minor Changes
+
+- [#8370](https://github.com/keystonejs/keystone/pull/8370) [`730ee7948`](https://github.com/keystonejs/keystone/commit/730ee79489cd5c7cf74553a86d5de8433d32ebeb) Thanks [@borisno2](https://github.com/borisno2)! - Adds support for Prisma Data Proxy client generation, automatically enabled for `db.url`'s with a `prisma:` prefix
+
+### Patch Changes
+
+- [#8373](https://github.com/keystonejs/keystone/pull/8373) [`c6c9078d5`](https://github.com/keystonejs/keystone/commit/c6c9078d5cdeab968d563c340904717ebc36b1a3) Thanks [@borisno2](https://github.com/borisno2)! - Fixes the `.keystone/types` import paths when using `db.prismaSchemaPath` on Windows
+
 ## 5.1.0
 
 ### Minor Changes
