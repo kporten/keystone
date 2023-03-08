@@ -79,15 +79,19 @@ export function getBuiltKeystoneConfigurationPath(cwd: string) {
 }
 
 export function getSystemPaths(cwd: string, config: KeystoneConfig) {
+  const internal = path.join(cwd, 'node_modules/.keystone');
+
   return {
     config: getBuiltKeystoneConfigurationPath(cwd),
     admin: path.join(cwd, '.keystone/admin'),
-    keystone: path.join(cwd, 'node_modules/.keystone'),
+    internal,
     prisma: config.db.prismaClientPath
       ? path.join(cwd, config.db.prismaClientPath)
       : '@prisma/client',
     schema: {
-      // types: // TODO
+      types: config.types?.listTypesPath
+        ? path.join(cwd, config.types.listTypesPath)
+        : path.join(internal, 'types.d.ts'),
       prisma: path.join(cwd, 'schema.prisma'),
       graphql: path.join(cwd, 'schema.graphql'),
     },
@@ -164,15 +168,20 @@ export async function generateNodeModulesArtifactsWithoutPrismaClient(
   graphQLSchema: GraphQLSchema
 ) {
   const paths = getSystemPaths(cwd, config);
-  const lists = initialiseLists(config);
 
-  await Promise.all([
-    fs.outputFile(
-      path.join(paths.keystone, 'types.d.ts'),
-      printGeneratedTypes(paths.prisma, graphQLSchema, lists)
-    ),
-    fs.outputFile(path.join(paths.keystone, 'types.js'), ''),
-  ]);
+  // custom? we still want to support `import { ... } from '.keystone/types'`
+  if (config.types?.listTypesPath) {
+    await fs.outputFile(
+      path.join(paths.internal, 'types.d.ts'),
+      `export * from '${paths.schema.types}'`
+    )
+  }
+
+  const lists = initialiseLists(config);
+  await fs.outputFile(
+    paths.schema.types,
+    printGeneratedTypes(paths.prisma, graphQLSchema, lists)
+  )
 }
 
 export async function generateNodeModulesArtifacts(
